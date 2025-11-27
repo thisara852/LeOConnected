@@ -1,5 +1,5 @@
 // HomeFeedScreen.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -8,9 +8,14 @@ import {
   TouchableOpacity,
   Image,
   Dimensions,
-  StatusBar as RNStatusBar
+  StatusBar as RNStatusBar,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { postService } from './services/postService';
+import { storyService } from './services/storyService';
+import { authService } from './services/authService';
 
 const { width } = Dimensions.get('window');
 
@@ -181,18 +186,52 @@ const BottomNav = ({ currentScreen, setScreen }) => (
 const HomeFeedScreen = ({ setScreen, openStory }) => {
   const [activeTab, setActiveTab] = useState('Following');
   const [currentBottomScreen, setCurrentBottomScreen] = useState('HomeFeed');
+  const [posts, setPosts] = useState([]);
+  const [stories, setStories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [username, setUsername] = useState('User');
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    await Promise.all([loadPosts(), loadStories(), loadUser()]);
+    setLoading(false);
+  };
+
+  const loadUser = async () => {
+    const { user } = await authService.getCurrentUser();
+    if (user) {
+      setUsername(user.email?.split('@')[0] || 'User');
+    }
+  };
+
+  const loadPosts = async () => {
+    const { data } = await postService.getPosts();
+    if (data) {
+      setPosts(data);
+    }
+  };
+
+  const loadStories = async () => {
+    const { data } = await storyService.getStories();
+    if (data) {
+      setStories(data);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
 
   const handlePostClick = () => {
     setScreen('PostDetail');
   };
-
-  // Updated posts with different images
-  const posts = [
-    { name: "Leo District 306 D1", time: "08:39 am", views: "56", likes: "34", image: require('../assets/post1.jpg') },
-    { name: "Another Post", time: "09:00 am", views: "10", likes: "5", image: require('../assets/post2.jpg') },
-    { name: "Leo Club Event", time: "10:15 am", views: "120", likes: "80", image: require('../assets/post3.jpg') },
-    { name: "Leadership Workshop", time: "11:30 am", views: "200", likes: "150", image: require('../assets/post4.jpg') },
-  ];
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: BG_DARK }}>
@@ -202,7 +241,7 @@ const HomeFeedScreen = ({ setScreen, openStory }) => {
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 15 }}>
         <View>
           <Text style={{ color: TEXT_LIGHT, fontSize: 18 }}>Welcome Back!</Text>
-          <Text style={{ color: TEXT_LIGHT, fontSize: 22, fontWeight: 'bold' }}>Akarsha</Text>
+          <Text style={{ color: TEXT_LIGHT, fontSize: 22, fontWeight: 'bold' }}>{username}</Text>
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -216,22 +255,44 @@ const HomeFeedScreen = ({ setScreen, openStory }) => {
       </View>
 
       {/* Feed */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 80 }}>
-        <StoriesBar openStory={openStory} />
-        <TabSegment activeTab={activeTab} setActiveTab={setActiveTab} />
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color={PRIMARY_GOLD} />
+        </View>
+      ) : (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 80 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={PRIMARY_GOLD}
+            />
+          }
+        >
+          <StoriesBar openStory={openStory} />
+          <TabSegment activeTab={activeTab} setActiveTab={setActiveTab} />
 
-        {posts.map((post, index) => (
-          <LeoFeedPost
-            key={index}
-            name={post.name}
-            time={post.time}
-            views={post.views}
-            likes={post.likes}
-            image={post.image}
-            onPress={handlePostClick}
-          />
-        ))}
-      </ScrollView>
+          {posts.length === 0 ? (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <Text style={{ color: TEXT_LIGHT }}>No posts yet. Be the first to post!</Text>
+            </View>
+          ) : (
+            posts.map((post, index) => (
+              <LeoFeedPost
+                key={post.id || index}
+                name={post.profiles?.full_name || post.profiles?.username || 'Unknown'}
+                time={new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                views={post.views_count?.toString() || '0'}
+                likes={post.likes_count?.toString() || '0'}
+                image={post.image_url ? { uri: post.image_url } : require('../assets/post1.jpg')}
+                onPress={handlePostClick}
+              />
+            ))
+          )}
+        </ScrollView>
+      )}
 
       {/* Bottom Navigation */}
       <BottomNav

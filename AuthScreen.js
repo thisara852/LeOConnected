@@ -11,10 +11,12 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import FeatherIcon from 'react-native-vector-icons/Feather';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
+import { authService } from './services/authService';
 
 const PRIMARY_GOLD = '#FFC107';
 const BG_DARK = '#000000';
@@ -102,27 +104,34 @@ const DarkInput = ({
 
 // --- Login Form ---
 const LoginForm = ({ onLogin }) => {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    if (username.length > 0 && password.length > 5) {
-      onLogin(); // call parent callback
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    setLoading(true);
+    const { data, error } = await authService.signIn(email, password);
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Login Failed', error.message);
     } else {
-      Alert.alert(
-        'Login Failed',
-        'Please enter a valid username and password.'
-      );
+      onLogin();
     }
   };
 
   return (
     <View style={styles.authFormContainer}>
       <DarkInput
-        label="Username :"
-        placeholder="Enter your Username"
-        value={username}
-        onChangeText={setUsername}
+        label="Email :"
+        placeholder="Enter your Email"
+        value={email}
+        onChangeText={setEmail}
       />
       <DarkInput
         label="Password :"
@@ -137,11 +146,9 @@ const LoginForm = ({ onLogin }) => {
         <Text style={styles.forgotPasswordText}>Forgot password</Text>
       </TouchableOpacity>
 
-      <GoldButton onPress={handleLogin} style={styles.loginButton}>
-        Login
+      <GoldButton onPress={handleLogin} style={styles.loginButton} disabled={loading}>
+        {loading ? <ActivityIndicator color="#000" /> : 'Login'}
       </GoldButton>
-
-      
     </View>
   );
 };
@@ -152,15 +159,33 @@ const SignupForm = ({ onSignup }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSignup = () => {
-    if (username && email && password && password === confirmPassword) {
-      onSignup();
+  const handleSignup = async () => {
+    if (!username || !email || !password) {
+      Alert.alert('Error', 'Please fill all fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+
+    setLoading(true);
+    const { data, error } = await authService.signUp(email, password, username);
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Signup Failed', error.message);
     } else {
-      Alert.alert(
-        'Signup Failed',
-        'Please fill all fields and ensure passwords match.'
-      );
+      Alert.alert('Success', 'Account created successfully!');
+      onSignup();
     }
   };
 
@@ -195,8 +220,8 @@ const SignupForm = ({ onSignup }) => {
         iconName="eye"
       />
 
-      <GoldButton onPress={handleSignup} style={styles.signupButton}>
-        Signup
+      <GoldButton onPress={handleSignup} style={styles.signupButton} disabled={loading}>
+        {loading ? <ActivityIndicator color="#000" /> : 'Signup'}
       </GoldButton>
     </View>
   );

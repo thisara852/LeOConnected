@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -6,10 +6,14 @@ import {
   Text,
   TouchableOpacity,
   Image,
-  TextInput, // <-- IMPORT ADDED
-  StatusBar as RNStatusBar
+  TextInput,
+  StatusBar as RNStatusBar,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { authService } from './services/authService';
+import { profileService } from './services/profileService';
 
 const PRIMARY_GOLD = '#FFC107';
 const BG_DARK = '#000000';
@@ -49,9 +53,44 @@ const CompleteProfileScreen = ({ setScreen }) => {
   const [club, setClub] = useState('');
   const [year, setYear] = useState('');
   const [role, setRole] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [userId, setUserId] = useState(null);
 
-  const handleSave = () => {
-    setScreen('HomeFeed'); 
+  useEffect(() => {
+    loadCurrentUser();
+  }, []);
+
+  const loadCurrentUser = async () => {
+    const { user } = await authService.getCurrentUser();
+    if (user) {
+      setUserId(user.id);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!club || !year || !role) {
+      Alert.alert('Error', 'Please fill all fields');
+      return;
+    }
+
+    if (!userId) {
+      Alert.alert('Error', 'User not found. Please login again.');
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await profileService.updateProfile(userId, {
+      club_name: club,
+      year,
+      role,
+    });
+    setLoading(false);
+
+    if (error) {
+      Alert.alert('Error', error.message);
+    } else {
+      setScreen('HomeFeed');
+    }
   };
 
   return (
@@ -87,7 +126,7 @@ const CompleteProfileScreen = ({ setScreen }) => {
         <DarkInput label="LEO Club Role :" placeholder="Select your LEO club role" value={role} onChangeText={setRole} />
 
         <GoldButton onPress={handleSave} style={{ marginTop: 40, height: 50 }}>
-          Save & Continue
+          {loading ? <ActivityIndicator color="#000" /> : 'Save & Continue'}
         </GoldButton>
       </ScrollView>
     </SafeAreaView>

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   Text,
@@ -9,8 +9,11 @@ import {
   Image,
   SafeAreaView,
   StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import Icon from "react-native-vector-icons/Ionicons";
+import { districtService } from './services/districtService';
+import { clubService } from './services/clubService';
 
 // --- Import local images ---
 // District logos
@@ -134,9 +137,46 @@ const ListItem = ({ item, setScreen }) => (
 const SearchScreen = ({ setScreen }) => {
   const [activeTab, setActiveTab] = useState("District");
   const [currentBottomScreen, setCurrentBottomScreen] = useState("HomeFeed");
+  const [districts, setDistricts] = useState([]);
+  const [clubs, setClubs] = useState([]);
+  const [searchText, setSearchText] = useState('');
+  const [loading, setLoading] = useState(true);
 
-  const dataToDisplay =
-    activeTab === "District" ? DISTRICT_DATA : CLUB_DATA;
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    const [districtsRes, clubsRes] = await Promise.all([
+      districtService.getDistricts(),
+      clubService.getClubs()
+    ]);
+
+    if (districtsRes.data) setDistricts(districtsRes.data);
+    if (clubsRes.data) setClubs(clubsRes.data);
+    setLoading(false);
+  };
+
+  const handleSearch = async (text) => {
+    setSearchText(text);
+    if (!text) {
+      loadData();
+      return;
+    }
+
+    setLoading(true);
+    if (activeTab === 'District') {
+      const { data } = await districtService.searchDistricts(text);
+      if (data) setDistricts(data);
+    } else {
+      const { data } = await clubService.searchClubs(text);
+      if (data) setClubs(data);
+    }
+    setLoading(false);
+  };
+
+  const dataToDisplay = activeTab === "District" ? districts : clubs;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -158,6 +198,8 @@ const SearchScreen = ({ setScreen }) => {
                 : "Search your club..."
             }
             placeholderTextColor="#888"
+            value={searchText}
+            onChangeText={handleSearch}
           />
           <Text style={styles.searchIcon}>🔎</Text>
         </View>
@@ -198,15 +240,30 @@ const SearchScreen = ({ setScreen }) => {
           </TouchableOpacity>
         </View>
 
-        <FlatList
-          data={dataToDisplay}
-          renderItem={({ item }) => (
-            <ListItem item={item} setScreen={setScreen} />
-          )}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color={PRIMARY_GOLD} />
+          </View>
+        ) : (
+          <FlatList
+            data={dataToDisplay}
+            renderItem={({ item }) => (
+              <ListItem item={{
+                ...item,
+                imageUri: item.avatar_url,
+                image: item.avatar_url ? null : (activeTab === 'District' ? D2_LOGO : C1_LOGO)
+              }} setScreen={setScreen} />
+            )}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={{ padding: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#FFF' }}>No results found</Text>
+              </View>
+            }
+          />
+        )}
 
         <BottomNav
           currentScreen={currentBottomScreen}
